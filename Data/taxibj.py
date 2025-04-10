@@ -50,8 +50,8 @@ class MinMaxNormalization(object):
 
 def load_stdata(fname):
     f = h5py.File(fname, 'r')
-    data = f['data'].value
-    timestamps = f['date'].value
+    data = f['data'][:]
+    timestamps = f['date'][:]
     f.close()
     return data, timestamps
 
@@ -71,8 +71,8 @@ def stat(fname):
     with h5py.File(fname) as f:
         nb_timeslot, ts_str, te_str = get_nb_timeslot(f)
         nb_day = int(nb_timeslot / 48)
-        mmax = f['data'].value.max()
-        mmin = f['data'].value.min()
+        mmax = f['data'][:].max()
+        mmin = f['data'][:].min()
         stat = '=' * 5 + 'stat' + '=' * 5 + '\n' + \
                'data shape: %s\n' % str(f['data'].shape) + \
                '# of days: %i, from %s to %s\n' % (nb_day, ts_str, te_str) + \
@@ -158,10 +158,10 @@ def load_meteorol(timeslots, fname=os.path.join(DATAPATH, 'taxibj', 'BJ_Meteorol
     In real-world, we dont have the meteorol data in the predicted timeslot, instead, we use the meteoral at previous timeslots, i.e., slot = predicted_slot - timeslot (you can use predicted meteorol data as well)
     '''
     f = h5py.File(fname, 'r')
-    Timeslot = f['date'].value
-    WindSpeed = f['WindSpeed'].value
-    Weather = f['Weather'].value
-    Temperature = f['Temperature'].value
+    Timeslot = f['date'][:]
+    WindSpeed = f['WindSpeed'][:]
+    Weather = f['Weather'][:]
+    Temperature = f['Temperature'][:]
     f.close()
 
     M = dict()  # map timeslot to index
