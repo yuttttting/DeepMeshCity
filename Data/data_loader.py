@@ -216,3 +216,41 @@ class Dataset_Taxibj(Dataset):
         YD = torch.FloatTensor(self.YD[item])
 
         return XC, XP, XT, YS, YD
+
+class Dataset_TPE(Dataset):
+    def __init__(self, configs, mode):
+        self.datapath = configs.datapath
+        self.data_type = configs.data_type
+        self.max_value = configs.max_value
+        if mode == 'train':
+            self.name = 'train_' + self.data_type + '.npz'
+        elif mode == 'valid':
+            self.name = 'valid_' + self.data_type + '.npz'
+        else:
+            self.name = 'test_' + self.data_type + '.npz'
+        path = os.path.join(self.datapath, self.name)
+        self.data = self.load_data(path)
+
+    def load_data(self, path):
+        all_data = np.load(path)
+        self.XC = all_data['xc']
+        self.XP = all_data['xp']
+        self.XT = all_data['xt']
+        self.YS = all_data['ys']
+        self.YD = all_data['yd']
+
+        print(self.XC.shape, self.XP.shape, self.XT.shape, self.YS.shape, self.YD.shape, self.max_value)
+
+        return all_data
+
+    def __len__(self):
+        return self.data['xc'].shape[0]
+
+    def __getitem__(self, item):
+        XC = torch.FloatTensor(self.XC[item])
+        XP = torch.FloatTensor(self.XP[item])
+        XT = torch.FloatTensor(self.XT[item])
+        YS = torch.FloatTensor(self.YS[item])
+        YD = torch.FloatTensor(self.YD[item])
+
+        return XC, XP, XT, YS, YD

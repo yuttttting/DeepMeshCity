@@ -1,4 +1,4 @@
-from Data.data_loader import Dataset_Bousai_CPT, Dataset_Taxibj
+from Data.data_loader import Dataset_Bousai_CPT, Dataset_Taxibj, Dataset_TPE
 
 
 def select_data(dataset_cfg, mode):
@@ -6,4 +6,6 @@ def select_data(dataset_cfg, mode):
         dataloader = Dataset_Bousai_CPT(configs=dataset_cfg, mode=mode)
     elif dataset_cfg.data_type == 'taxibj':
         dataloader = Dataset_Taxibj(configs=dataset_cfg, mode=mode)
+    elif dataset_cfg.data_type == 'TPE':
+        dataloader = Dataset_TPE(configs=dataset_cfg, mode=mode)
     return dataloader
