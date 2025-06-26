@@ -1,1 +1,3 @@
 .\Data\testenv\Scripts\activate.ps1
+python run.py DeepMeshCity_TPE_flow_config.py TPE flow train
+python run.py DeepMeshCity_TPE_flow_config.py TPE flow test
