@@ -1,6 +1,6 @@
 # data
 
-device = 'mps'  # cuda:0
+device = 'cuda:0'  # cuda:0
 random_seed = 6666
 
 # file hyperparameter
