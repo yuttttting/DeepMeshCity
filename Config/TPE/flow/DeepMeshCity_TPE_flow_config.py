@@ -1,6 +1,6 @@
 # data
 
-device = 'cuda:0'  # cuda:0
+device = 'mps'  # cuda:0
 random_seed = 6666
 
 # file hyperparameter
@@ -21,7 +21,7 @@ ratio = 4
 patch_size = width // ratio
 channel = 1
 num_hidden = [64, 64]
-meta_date_dim = 32
+meta_date_dim = 15
 
 dataset_cfg = dict(
     data_type='TPE',
@@ -32,7 +32,7 @@ dataset_cfg = dict(
 # model parameter
 model_cfg = dict(
     model_type='DeepMeshCity_TPE',
-    meta_dim=meta_date_dim,
+    meta_dim=meta_date_dim*width*width,
     is_metadate=True,
     is_extra = None,
     map_width=width,

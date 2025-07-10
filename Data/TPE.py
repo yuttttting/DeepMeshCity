@@ -92,23 +92,25 @@ def stat(fname):
                'missing ratio of timeslots: %.1f%%\n' % ((1. - float(f['date'].shape[0] / nb_timeslot)) * 100) + \
                'max: %.3f, min: %.3f\n' % (mmax, mmin) + \
                '=' * 5 + 'stat' + '=' * 5
-        print(stat)
+        # print(stat)
 
 ##
-def timestamp2vec(timestamps):
-    # tm_wday range [0, 6], Monday is 0
-    # vec = [time.strptime(str(t[:8], encoding='utf-8'), '%Y%m%d').tm_wday for t in timestamps]  # python3
-    vec = [time.strptime(str(t[:8], encoding='utf-8'), '%Y%m%d').tm_wday for t in timestamps]  # python2
+def timestamp2vec(timestamps, num_grids=784):
+    """
+    將每個 timestamp 轉為 one-hot weekday + weekday/weekend indicator，
+    並擴展為 (N, 784, 8)
+    """
+    vec = [time.strptime(str(t[:8], encoding='utf-8'), '%Y%m%d').tm_wday for t in timestamps]
     ret = []
     for i in vec:
-        v = [0 for _ in range(7)]
+        v = [0] * 7
         v[i] = 1
-        if i >= 5:
-            v.append(0)  # weekend
-        else:
-            v.append(1)  # weekday
+        v.append(0 if i >= 5 else 1)  # weekend:0 / weekday:1
         ret.append(v)
-    return np.asarray(ret) # 給多少天有多少 [0, 0, 1, 0, 0, 0, 0, 1] 星期三平日
+
+    ret = np.asarray(ret)  # shape: (N, 8)
+    ret = np.repeat(ret[:, np.newaxis, :], num_grids, axis=1)  # shape: (N, 784, 8)
+    return ret
 
 
 def string2timestamp(strings, T=6):
@@ -153,7 +155,7 @@ def remove_incomplete_days(data, timestamps, T=48):
     timestamps = [timestamps[i] for i in idx]
     return data, timestamps
 
-def load_meteorol(timeslots, fname):
+def load_meteorol(timeslots):
     '''
     讀取時間戳對應的 meta 特徵：
     - rush hour
@@ -165,7 +167,7 @@ def load_meteorol(timeslots, fname):
     '''
     M = dict()
     for year in [107, 108, 112, 113]:
-        fname = '../dataset_4yr\TPE_{}_attribute_weather.csv'.format(year)
+        fname = './dataset_4yr/TPE_{}_attribute_weather.csv'.format(year)
         f = pd.read_csv(fname, dtype={'index': str})
         # 把 timestamp index 做成 dict
         
@@ -173,7 +175,6 @@ def load_meteorol(timeslots, fname):
             slot = row['index']
             if slot not in M:  # 如果還沒出現過，才加進去
                 M[slot] = i
-    print(M)
     # 準備要取出的特徵欄
     rush_hour = []
     weekend = []
@@ -183,7 +184,6 @@ def load_meteorol(timeslots, fname):
     weather = []
     timeslots = [t.decode('utf-8') if isinstance(t, bytes) else t for t in timeslots]
 
-    print(timeslots)
     for slot in timeslots:
         if slot not in M:
             # 若沒對應到就填 0
@@ -204,36 +204,50 @@ def load_meteorol(timeslots, fname):
             weather.append(f.loc[i, 'TX01'])
             # print("match")
 
-    # 將 list 轉成 numpy array 並合併
-    rush_hour = np.asarray(rush_hour)
-    weekend = np.asarray(weekend)
-    holiday = np.asarray(holiday)
-    make_up = np.asarray(make_up)
-    day_of_week = np.asarray(day_of_week)
-    weather = np.asarray(weather)
+   # 合併成 array
+    features = np.stack([
+        np.asarray(rush_hour),
+        np.asarray(weekend),
+        np.asarray(holiday),
+        np.asarray(make_up),
+        np.asarray(day_of_week),
+        np.asarray(weather)
+    ], axis=1)  # shape = (num_timeslots, 6)
 
-    # 合併成一個 array
-    merge_data = np.stack([rush_hour, weekend, holiday, make_up, day_of_week, weather], axis=1)
+    # 擴展到 784 個區域
+    features_expanded = np.repeat(features[:, np.newaxis, :], 784, axis=1)  # shape = (num_timeslots, 784, 6)
 
-    print("External data shape:", merge_data.shape)
-    return merge_data
-def load_population():
+    print("External data shape:", features_expanded.shape)
+    return features_expanded
+
+def load_population(timeslots):
     # load data
     data_all = []
-    timestamps_all = list()
+    timestamps_all = []
     for year in [107, 108, 112, 113]:
-        fname = '../dataset_4yr\TPE_popall_{}_grid.csv'.format(year)
+        fname = 'dataset_4yr/TPE_{}_pop.csv'.format(year)
         print("file name: ", fname)
-        # stat(fname)
-        data, timestamps = load_stdata(fname)
-        print("Loaded data shape:", data.shape)
-        # remove a certain day which does not have 48 timestamps
-        data, timestamps = remove_incomplete_days(data, timestamps, T)
-        data = data[:, :nb_flow]
-        data[data < 0] = 0.
+        data, timestamps = load_stdata(fname)  # assume shape: (N, 1, 28, 28)
+        data = data.reshape(data.shape[0], -1, 1)  # => (N, 784, 1)
         data_all.append(data)
-        timestamps_all.append(timestamps)
-        print("\n")
+        timestamps_all += list(timestamps)
+    # timeslots = [t.decode('utf-8') if isinstance(t, bytes) else t for t in timeslots]
+
+    # 將 timestamps 轉為 dict：timestamp -> index
+    ts_index_map = {ts: idx for idx, ts in enumerate(timestamps_all)}
+
+    selected_pop = []
+    for slot in timeslots:
+        slot = slot.decode('utf-8') if isinstance(slot, bytes) else slot
+        if slot in ts_index_map:
+            idx = ts_index_map[slot]
+            selected_pop.append(data_all[idx])
+        else:
+            selected_pop.append(np.zeros((784, 1)))  # 補 0 值
+
+    selected_pop = np.stack(selected_pop, axis=0)  # shape: (len(timeslots), 784, 1)
+    print("Selected population shape:", selected_pop.shape)
+    return selected_pop
 
 
 class STMatrix(object):
@@ -332,7 +346,7 @@ class STMatrix(object):
 
 def load_data(T=6, nb_flow=1, len_closeness=6, len_period=1, len_trend=1,
               len_test=1, preprocess_name='preprocessing.pkl',
-              meta_data=True, meteorol_data=True, holiday_data=True):
+              meta_data=True, meteorol_data=True, holiday_data=True, population_data=True):
     """
     """
     assert (len_closeness + len_period + len_trend > 0)
@@ -340,7 +354,7 @@ def load_data(T=6, nb_flow=1, len_closeness=6, len_period=1, len_trend=1,
     data_all = []
     timestamps_all = list()
     for year in [107, 108, 112, 113]:
-        fname = '../dataset_4yr\TPE_{}_grid.csv'.format(year)
+        fname = './dataset_4yr/TPE_{}_grid.csv'.format(year)
         print("file name: ", fname)
         # stat(fname)
         data, timestamps = load_stdata(fname)
@@ -384,25 +398,32 @@ def load_data(T=6, nb_flow=1, len_closeness=6, len_period=1, len_trend=1,
     if meta_data:
         # load time feature
         time_feature = timestamp2vec(timestamps_Y)
+        print("time_feature:",time_feature.shape)
         meta_feature.append(time_feature)
-    print("meta_feature" , meta_feature)
+    # print("meta_feature" , meta_feature)
     if meteorol_data:
         # load meteorol data
-        for year in [107, 108, 112, 113]:
-            fname = '../dataset_4yr\TPE_{}_attribute_weather.csv'.format(year)
-            meteorol_feature=(load_meteorol(timestamps_Y,fname))
-            meta_feature.append(meteorol_feature)
-    print("meta_feature" , meta_feature)
-    meta_feature = np.hstack(meta_feature) if len(
-        meta_feature) > 0 else np.asarray(meta_feature)
-    metadata_dim = meta_feature.shape[1] if len(
-        meta_feature.shape) > 1 else None
+        meteorol_feature=(load_meteorol(timestamps_Y))
+        print("meteorol_feature:", meteorol_feature.shape)
+        meta_feature.append(meteorol_feature)
+    if population_data:
+        # load population data
+        population_feature = load_population(timestamps_Y)
+        print("population_feature:", population_feature.shape)
+        meta_feature.append(population_feature)
+
+    # print("meta_feature" , meta_feature)
+
+    # meta_feature = np.hstack(meta_feature) if len(
+    #     meta_feature) > 0 else np.asarray(meta_feature)
+    # metadata_dim = meta_feature.shape[1] if len(
+    #     meta_feature.shape) > 1 else None
+    meta_feature = np.concatenate(meta_feature, axis=2)
+    metadata_dim = meta_feature.shape[2] if len(
+         meta_feature.shape) > 1 else None
     if metadata_dim < 1:
         metadata_dim = None
-    # if meta_data and holiday_data and meteorol_data:
-    #     print('time feature:', time_feature.shape, 'holiday feature:', holiday_feature.shape,
-    #           'meteorol feature: ', meteorol_feature.shape, 'mete feature: ', meta_feature.shape)
-
+    
     XC = np.vstack(XC)
     XP = np.vstack(XP)
     XT = np.vstack(XT)
@@ -434,7 +455,8 @@ def load_data(T=6, nb_flow=1, len_closeness=6, len_period=1, len_trend=1,
     valid_data = {'xc': XC_valid, 'xp': XP_valid, 'xt': XT_valid, 'ys': Y_valid, 'yd': meta_feature_valid}
     test_Data = {'xc': XC_test, 'xp': XP_test, 'xt': XT_test, 'ys': Y_test, 'yd': meta_feature_test}
 
-    datapath = "./TPE/flow"
+    datapath = "Data/TPE/flow"
+    os.makedirs(datapath, exist_ok=True)
     city_type = 'TPE'
     train_filename = os.path.join(datapath, 'train_' + city_type + '.npz')
     valid_filename = os.path.join(datapath, 'valid_' + city_type + '.npz')
