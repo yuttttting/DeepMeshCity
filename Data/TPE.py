@@ -249,7 +249,34 @@ def load_population(timeslots):
     print("Selected population shape:", selected_pop.shape)
     return selected_pop
 
+def load_rain(timeslots):
+    # load data
+    data_all = []
+    timestamps_all = []
+    for year in [107, 108, 112, 113]:
+        fname = 'dataset_4yr/rain_grid_{}.csv'.format(year)
+        print("file name: ", fname)
+        data, timestamps = load_stdata(fname)  # assume shape: (N, 1, 28, 28)
+        data = data.reshape(data.shape[0], -1, 1)  # => (N, 784, 1)
+        data_all.append(data)
+        timestamps_all += list(timestamps)
+    # timeslots = [t.decode('utf-8') if isinstance(t, bytes) else t for t in timeslots]
 
+    # 將 timestamps 轉為 dict：timestamp -> index
+    ts_index_map = {ts: idx for idx, ts in enumerate(timestamps_all)}
+
+    selected_pop = []
+    for slot in timeslots:
+        slot = slot.decode('utf-8') if isinstance(slot, bytes) else slot
+        if slot in ts_index_map:
+            idx = ts_index_map[slot]
+            selected_pop.append(data_all[idx])
+        else:
+            selected_pop.append(np.zeros((784, 1)))  # 補 0 值
+
+    selected_pop = np.stack(selected_pop, axis=0)  # shape: (len(timeslots), 784, 1)
+    print("Selected rain shape:", selected_pop.shape)
+    return selected_pop
 class STMatrix(object):
     """docstring for STMatrix"""
 
@@ -346,7 +373,7 @@ class STMatrix(object):
 
 def load_data(T=6, nb_flow=1, len_closeness=6, len_period=1, len_trend=1,
               len_test=1, preprocess_name='preprocessing.pkl',
-              meta_data=True, meteorol_data=True, holiday_data=True, population_data=True):
+              meta_data=True, meteorol_data=True, holiday_data=True, population_data=True, rain_data=True):
     """
     """
     assert (len_closeness + len_period + len_trend > 0)
@@ -411,7 +438,11 @@ def load_data(T=6, nb_flow=1, len_closeness=6, len_period=1, len_trend=1,
         population_feature = load_population(timestamps_Y)
         print("population_feature:", population_feature.shape)
         meta_feature.append(population_feature)
-
+    if rain_data:
+        # load rain data
+        rain_feature = load_rain(timestamps_Y)
+        print("rain_feature:", rain_feature.shape)
+        meta_feature.append(rain_feature)
     # print("meta_feature" , meta_feature)
 
     # meta_feature = np.hstack(meta_feature) if len(

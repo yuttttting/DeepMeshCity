@@ -21,7 +21,7 @@ ratio = 4
 patch_size = width // ratio
 channel = 1
 num_hidden = [64, 64]
-meta_date_dim = 15
+meta_date_dim = 16
 
 dataset_cfg = dict(
     data_type='TPE',
